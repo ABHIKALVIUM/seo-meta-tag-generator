@@ -55,17 +55,87 @@ function counterColor(len, warn, danger) {
 }
 
 // ─── Helper: SEO Score ────────────────────────────────────────────────────────
-function getSeoScore(title, description) {
-  const tLen = title.trim().length
-  const dLen = description.trim().length
+// Multi-factor scoring: title (35pts), description (35pts), keywords (20pts), pageType (10pts)
+function getSeoScore(title, description, keywords, pageType) {
+  const t = title.trim()
+  const d = description.trim()
+  const tLen = t.length
+  const dLen = d.length
+  const kwCount = keywords.trim()
+    ? keywords.split(',').map(k => k.trim()).filter(Boolean).length
+    : 0
 
-  if (tLen >= 50 && tLen <= 60 && dLen >= 120 && dLen <= 160) {
-    return { label: 'Excellent', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', pct: 100 }
+  let points = 0
+
+  // ── Title scoring (35 pts) ────────────────────────────────────────────────
+  if (tLen >= 50 && tLen <= 60) {
+    points += 35          // perfect sweet-spot
+  } else if (tLen >= 40 && tLen <= 70) {
+    points += 25          // acceptable range
+  } else if (tLen >= 20 && tLen < 40) {
+    points += 15          // too short but usable
+  } else if (tLen > 70) {
+    points += 10          // too long — will be truncated
+  } else if (tLen > 0) {
+    points += 5           // something is there
   }
-  if (tLen >= 40 && tLen <= 70 && dLen >= 100 && dLen <= 170) {
-    return { label: 'Good', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500', pct: 72 }
+  // Bonus: title contains at least one keyword word (shows keyword alignment)
+  if (tLen > 0 && kwCount > 0) {
+    const firstKw = keywords.split(',')[0].trim().toLowerCase()
+    if (t.toLowerCase().includes(firstKw.split(' ')[0])) points += 0 // no extra, already rewarded
   }
-  return { label: 'Needs Improvement', color: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500', pct: 38 }
+
+  // ── Description scoring (35 pts) ─────────────────────────────────────────
+  if (dLen >= 120 && dLen <= 160) {
+    points += 35          // perfect
+  } else if (dLen >= 80 && dLen < 120) {
+    points += 25          // good but slightly short
+  } else if (dLen > 160 && dLen <= 200) {
+    points += 20          // slightly over but still rich
+  } else if (dLen >= 50 && dLen < 80) {
+    points += 15          // thin
+  } else if (dLen > 0) {
+    points += 8
+  }
+
+  // ── Keywords scoring (20 pts) ─────────────────────────────────────────────
+  if (kwCount >= 3 && kwCount <= 8) {
+    points += 20          // ideal: focused set
+  } else if (kwCount === 2) {
+    points += 14
+  } else if (kwCount === 1) {
+    points += 8
+  } else if (kwCount > 8) {
+    points += 10          // too many — dilutes focus
+  }
+
+  // ── Page type set (10 pts) ────────────────────────────────────────────────
+  if (pageType && pageType !== 'website') {
+    points += 10          // specific page type = better structured data
+  } else if (pageType === 'website') {
+    points += 7           // valid, just generic
+  }
+
+  const pct = Math.min(100, points)
+
+  // Build a hint for non-excellent scores
+  const hints = []
+  const tLen2 = t.length
+  const dLen2 = d.length
+  if (tLen2 < 50) hints.push(`title too short (${tLen2} chars — aim for 50–60)`)
+  else if (tLen2 > 60) hints.push(`title too long (${tLen2} chars — keep under 60)`)
+  if (dLen2 < 120) hints.push(`description too short (${dLen2} chars — aim for 120–160)`)
+  else if (dLen2 > 160) hints.push(`description too long (${dLen2} chars — trim to 160)`)
+  if (kwCount < 3) hints.push('add at least 3 keywords')
+  const hintStr = hints.length > 0 ? `To reach Excellent: ${hints.join('; ')}.` : null
+
+  if (pct >= 90) {
+    return { label: 'Excellent', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', pct: 100, hint: null }
+  }
+  if (pct >= 65) {
+    return { label: 'Good', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500', pct: Math.max(65, pct), hint: hintStr }
+  }
+  return { label: 'Needs Improvement', color: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500', pct: Math.max(20, pct), hint: hintStr }
 }
 
 // ─── Helper: Generate meta tag HTML ──────────────────────────────────────────
@@ -75,14 +145,30 @@ function generateMetaTags(title, description, keywords, pageType) {
   const k = keywords.trim() || 'keyword1, keyword2, keyword3'
   const pt = pageType || 'website'
 
+  // Derive a clean site name from the title (first 2–3 words)
+  const siteName = t.split(' ').slice(0, 3).join(' ')
+
+  // Page-type-specific extra Open Graph tags
+  const ogTypeExtras = pt === 'article'
+    ? `\n<meta property="article:published_time" content="${new Date().toISOString().split('T')[0]}">\n<meta property="article:author" content="https://yourwebsite.com/author">`
+    : pt === 'product'
+    ? `\n<meta property="product:availability" content="in stock">\n<meta property="product:condition" content="new">`
+    : ''
+
   return `<!-- Primary Meta Tags -->
 <title>${t}</title>
 <meta name="title" content="${t}">
 <meta name="description" content="${d}">
 <meta name="keywords" content="${k}">
 <meta name="robots" content="index, follow">
+<meta name="revisit-after" content="7 days">
+<meta name="author" content="Your Name">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="language" content="English">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Canonical URL (replace with your actual page URL) -->
+<link rel="canonical" href="https://yourwebsite.com/">
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="${pt}">
@@ -90,13 +176,21 @@ function generateMetaTags(title, description, keywords, pageType) {
 <meta property="og:title" content="${t}">
 <meta property="og:description" content="${d}">
 <meta property="og:image" content="https://yourwebsite.com/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${t}">
+<meta property="og:site_name" content="${siteName}">
+<meta property="og:locale" content="en_US">${ogTypeExtras}
 
-<!-- Twitter -->
-<meta property="twitter:card" content="summary_large_image">
-<meta property="twitter:url" content="https://yourwebsite.com/">
-<meta property="twitter:title" content="${t}">
-<meta property="twitter:description" content="${d}">
-<meta property="twitter:image" content="https://yourwebsite.com/twitter-image.jpg">`
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://yourwebsite.com/">
+<meta name="twitter:title" content="${t}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="https://yourwebsite.com/twitter-image.jpg">
+<meta name="twitter:image:alt" content="${t}">
+<meta name="twitter:site" content="@yourhandle">
+<meta name="twitter:creator" content="@yourhandle">`
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -129,7 +223,7 @@ function InputSection({ id, label, tip, children, counter }) {
   )
 }
 
-function ScoreBar({ pct, label, color, dot }) {
+function ScoreBar({ pct, label, color, dot, hint }) {
   return (
     <div className="mt-4 space-y-2">
       <div className="flex items-center justify-between text-sm">
@@ -142,11 +236,17 @@ function ScoreBar({ pct, label, color, dot }) {
       <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${
-            pct === 100 ? 'bg-emerald-500' : pct > 50 ? 'bg-blue-500' : 'bg-amber-500'
+            pct === 100 ? 'bg-emerald-500' : pct > 64 ? 'bg-blue-500' : 'bg-amber-500'
           }`}
           style={{ width: `${pct}%` }}
         />
       </div>
+      {hint && (
+        <p className="text-xs text-slate-500 flex items-start gap-1.5 pt-0.5">
+          <span className="text-amber-500 flex-shrink-0">💡</span>
+          {hint}
+        </p>
+      )}
     </div>
   )
 }
@@ -184,7 +284,7 @@ export default function App() {
   // Generate
   const handleGenerate = useCallback(() => {
     const html = generateMetaTags(title, description, keywords, pageType)
-    const seoScore = getSeoScore(title, description)
+    const seoScore = getSeoScore(title, description, keywords, pageType)
     setOutput(html)
     setScore(seoScore)
     setTimeout(() => {
