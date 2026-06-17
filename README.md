@@ -2,7 +2,7 @@
 
 A free, no-signup tool that generates production-ready HTML meta tags instantly — including Primary SEO tags, Open Graph, and Twitter Card tags. Built as part of the **Digital Heroes** developer trial task.
 
-🔗 **Live Demo:** [[seo-meta-tag-generator.vercel.app](https://seo-meta-tag-generator-7e9h.vercel.app/)]([https://seo-meta-tag-generator.vercel.app](https://seo-meta-tag-generator-7e9h.vercel.app/))
+🔗 **Live Demo:** [seo-meta-tag-generator-7e9h.vercel.app](https://seo-meta-tag-generator-7e9h.vercel.app/)
 
 ---
 
